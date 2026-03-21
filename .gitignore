@@ -1,0 +1,103 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.so.*
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories
+vendor/
+
+# Go workspace file
+go.work
+
+# Build output directory
+bin/
+build/
+dist/
+
+# IDE-specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+*.iml
+.project
+.classpath
+.c9/
+*.code-workspace
+.vscode-test
+
+# Environment files (secrets)
+.env
+.env.local
+.env.*.local
+
+# OS-specific files
+Thumbs.db
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# IDE Generated files
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/settings.json
+!.vscode/tasks.json
+
+# JetBrains IDEs
+.idea/*
+*.iml
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Coverage reports
+coverage/
+*.lcov
+coverage.out
+
+# Temp directories
+tmp/
+temp/
+.tmp/
+
+# Docker volumes and artifacts
+.docker-compose.override.yml
+docker-compose.override.yml
+
+# Air live reload (if used)
+.air.toml
+
+# Swagger generated files (these are auto-generated)
+docs/swagger.json
+docs/swagger.yaml
+docs/docs.go
+
+# GoLand specific files
+.idea/
+*.iml
+
+# MacOS
+.DS_Store

@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: arthaledger-postgres
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "${DB_PORT}:5432"
+    volumes:
+      - finance_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - arthaledger-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: arthaledger-redis
+    # Pass --requirepass only when REDIS_PASSWORD is set so the Go client can authenticate.
+    # If REDIS_PASSWORD is empty the flag is omitted and Redis runs without auth (fine for dev).
+    command: >
+      sh -c '
+        if [ -n "$$REDIS_PASSWORD" ]; then
+          redis-server --requirepass "$$REDIS_PASSWORD"
+        else
+          redis-server
+        fi
+      '
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    ports:
+      - "${REDIS_PORT}:6379"
+    volumes:
+      - finance_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - arthaledger-network
+    restart: unless-stopped
+
+volumes:
+  finance_db_data:
+    driver: local
+  finance_redis_data:
+    driver: local
+
+networks:
+  arthaledger-network:
+    driver: bridge
