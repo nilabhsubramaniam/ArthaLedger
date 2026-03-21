@@ -8,7 +8,7 @@ A production-quality REST API backend for personal finance management, built wit
 
 ArthaLedger helps users track income and expenses across multiple bank accounts. Transactions are categorized automatically using keyword rules, with an optional OpenAI fallback for unknown merchants. The system supports budgeting, smart alerts, and monthly financial reports.
 
-**Status:** Phase 0 complete — database connected, server running, health endpoint live.
+**Status:** Phase 1 complete — auth API live (register, login, refresh, logout) with JWT + Swagger UI.
 
 ---
 
@@ -23,7 +23,7 @@ ArthaLedger helps users track income and expenses across multiple bank accounts.
 | Cache | Redis 7 |
 | Configuration | Viper (reads `.env`) |
 | Migrations | golang-migrate |
-| Auth | JWT (HS256) |
+| Auth | JWT HS256 (`golang-jwt/jwt/v5`) |
 | Logging | `log/slog` (stdlib) |
 | Containerization | Docker & Docker Compose |
 
@@ -93,7 +93,7 @@ All routes are prefixed with `/api/v1`. All routes except `/auth/register` and `
 | Alerts | `/api/v1/alerts` |
 | Health | `/health` |
 
-Full Swagger documentation is generated at `/swagger/index.html` via `make swagger`.
+Full Swagger UI is available at `http://localhost:8080/swagger/index.html` after running `make swagger`. Re-run after any annotation change.
 
 All responses use one of two shapes:
 ```json

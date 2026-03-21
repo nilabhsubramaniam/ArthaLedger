@@ -1,3 +1,26 @@
+// Package main is the entry point for the ArthaLedger API server.
+// It wires together configuration, database connections, and HTTP routes,
+// then starts the server with graceful shutdown support.
+//
+// Swagger / OpenAPI documentation is generated from the annotations in this
+// file and in the handler packages. Run `make swagger` to regenerate.
+//
+//	@title           ArthaLedger API
+//	@version         1.0
+//	@description     Personal finance tracker — accounts, transactions, budgets, and alerts.
+//
+//	@contact.name   ArthaLedger Support
+//	@contact.email  support@arthaledger.io
+//
+//	@license.name  MIT
+//
+//	@host      localhost:8080
+//	@BasePath  /api/v1
+//
+//	@securityDefinitions.apikey  BearerAuth
+//	@in                          header
+//	@name                        Authorization
+//	@description                 Type "Bearer" followed by a space and the JWT access token.
 package main
 
 import (
@@ -12,7 +35,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/nilabh/arthaledger/config"
+	"github.com/nilabh/arthaledger/internal/auth"
 	"github.com/nilabh/arthaledger/pkg/database"
+	"github.com/nilabh/arthaledger/pkg/middleware"
+
+	// Generated swagger docs — imported for side-effect only (registers docs with gin-swagger).
+	_ "github.com/nilabh/arthaledger/docs"
+
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 func main() {
@@ -48,6 +79,14 @@ func main() {
 		defer redisClient.Close()
 	}
 
+	// ── Wire application dependencies ───────────────────────────────────────
+	// Each layer receives only what it needs, following the dependency-inversion
+	// principle: handlers depend on service interfaces, services on repositories.
+
+	authRepo := auth.NewRepository(db)
+	authSvc := auth.NewService(authRepo, redisClient, cfg)
+	authHandler := auth.NewHandler(authSvc)
+
 	// ── HTTP server setup ───────────────────────────────────────────────────
 
 	// Silence Gin's debug noise in production
@@ -56,6 +95,11 @@ func main() {
 	}
 
 	router := gin.Default()
+
+	// ── Swagger UI ─────────────────────────────────────────────────────────
+	// Available at http://localhost:<port>/swagger/index.html
+	// Only active when docs have been generated via `make swagger`.
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	// Health check endpoint (no auth required)
 	router.GET("/health", func(c *gin.Context) {
@@ -67,25 +111,18 @@ func main() {
 		})
 	})
 
-	// API v1 routes
+	// ── API v1 routes ───────────────────────────────────────────────────────
 	apiV1 := router.Group("/api/v1")
 	{
-		// Auth routes (to be implemented in Phase 1)
-		authRoutes := apiV1.Group("/auth")
-		{
-			authRoutes.POST("/register", func(c *gin.Context) {
-				c.JSON(http.StatusNotImplemented, gin.H{
-					"success": false,
-					"error":   "Not implemented yet",
-				})
-			})
+		// Public auth routes — register, login, refresh (no token required)
+		authHandler.RegisterRoutes(apiV1.Group("/auth"))
 
-			authRoutes.POST("/login", func(c *gin.Context) {
-				c.JSON(http.StatusNotImplemented, gin.H{
-					"success": false,
-					"error":   "Not implemented yet",
-				})
-			})
+		// Protected logout route — requires a valid Bearer token.
+		// The middleware validates the JWT and populates the Gin context with
+		// user_id, email, jti, and token_expiry for downstream handlers.
+		protected := apiV1.Group("", middleware.Auth(cfg, redisClient))
+		{
+			protected.DELETE("/auth/logout", authHandler.LogoutHandler())
 		}
 	}
 
