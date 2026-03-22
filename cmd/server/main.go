@@ -35,7 +35,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/nilabh/arthaledger/config"
+	"github.com/nilabh/arthaledger/internal/accounts"
 	"github.com/nilabh/arthaledger/internal/auth"
+	"github.com/nilabh/arthaledger/internal/transactions"
 	"github.com/nilabh/arthaledger/pkg/database"
 	"github.com/nilabh/arthaledger/pkg/middleware"
 
@@ -83,9 +85,21 @@ func main() {
 	// Each layer receives only what it needs, following the dependency-inversion
 	// principle: handlers depend on service interfaces, services on repositories.
 
+	// Auth
 	authRepo := auth.NewRepository(db)
 	authSvc := auth.NewService(authRepo, redisClient, cfg)
 	authHandler := auth.NewHandler(authSvc)
+
+	// Accounts — repository is also passed to the transactions service so that
+	// transaction creation/deletion can update the account balance atomically.
+	accountRepo := accounts.NewRepository(db)
+	accountSvc := accounts.NewService(accountRepo)
+	accountHandler := accounts.NewHandler(accountSvc)
+
+	// Transactions — depends on accountRepo for ownership checks and balance updates.
+	txRepo := transactions.NewRepository(db)
+	txSvc := transactions.NewService(txRepo, accountRepo)
+	txHandler := transactions.NewHandler(txSvc)
 
 	// ── HTTP server setup ───────────────────────────────────────────────────
 
@@ -117,12 +131,19 @@ func main() {
 		// Public auth routes — register, login, refresh (no token required)
 		authHandler.RegisterRoutes(apiV1.Group("/auth"))
 
-		// Protected logout route — requires a valid Bearer token.
-		// The middleware validates the JWT and populates the Gin context with
-		// user_id, email, jti, and token_expiry for downstream handlers.
+		// All routes below require a valid Bearer token.
+		// middleware.Auth validates the JWT, checks the Redis blacklist, and
+		// injects user_id / email / jti / token_expiry into the Gin context.
 		protected := apiV1.Group("", middleware.Auth(cfg, redisClient))
 		{
+			// Auth — logout
 			protected.DELETE("/auth/logout", authHandler.LogoutHandler())
+
+			// Accounts — full CRUD + summary
+			accountHandler.RegisterRoutes(protected.Group("/accounts"))
+
+			// Transactions — full CRUD + filtered paginated list
+			txHandler.RegisterRoutes(protected.Group("/transactions"))
 		}
 	}
 
