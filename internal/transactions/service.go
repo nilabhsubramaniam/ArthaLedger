@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/nilabh/arthaledger/internal/accounts"
+	"github.com/nilabh/arthaledger/pkg/categorizer"
 	"gorm.io/gorm"
 )
 
@@ -54,17 +55,24 @@ type Service interface {
 
 // ── Concrete implementation ───────────────────────────────────────────────────
 
-// service depends on both the transactions repository (for transaction rows) and
-// the accounts repository (for ownership verification and balance updates).
+// RulesProvider is the subset of the rules.Service interface that the transaction
+// service needs — keeping it thin avoids an import cycle.
+type RulesProvider interface {
+	CategorizerRules(ctx context.Context, userID uint) ([]categorizer.Rule, error)
+}
+
+// service depends on the transactions repository, the accounts repository,
+// and (optionally) the rules service for auto-categorization.
 type service struct {
 	repo        Repository
 	accountRepo accounts.Repository
+	rulesProvider RulesProvider // may be nil when rules are not wired yet
 }
 
 // NewService constructs the transactions service.
-// accountRepo is required because every transaction modifies an account balance.
-func NewService(repo Repository, accountRepo accounts.Repository) Service {
-	return &service{repo: repo, accountRepo: accountRepo}
+// rulesProvider may be nil — if so, auto-categorization is skipped.
+func NewService(repo Repository, accountRepo accounts.Repository, rulesProvider RulesProvider) Service {
+	return &service{repo: repo, accountRepo: accountRepo, rulesProvider: rulesProvider}
 }
 
 // ── Service method implementations ───────────────────────────────────────────
@@ -99,8 +107,25 @@ func (s *service) Create(ctx context.Context, userID uint, req CreateTransaction
 		return nil, fmt.Errorf("verifying source account: %w", err)
 	}
 
+	// ── Auto-categorization ──────────────────────────────────────────────────
+	// If the caller did not supply a category_id, attempt to assign one
+	// automatically using the user's keyword rules.
+	categoryID := req.CategoryID
+	if categoryID == nil && req.Description != "" && s.rulesProvider != nil {
+		if engineRules, err := s.rulesProvider.CategorizerRules(ctx, userID); err == nil {
+			if matched, ok := categorizer.Categorize(req.Description, engineRules); ok {
+				slog.Info("Auto-categorized transaction",
+					"description", req.Description,
+					"category_id", matched,
+				)
+				categoryID = &matched
+			}
+		}
+	}
+
 	// Handle transfer as a special multi-row operation.
 	if req.Type == TypeTransfer {
+		req.CategoryID = categoryID
 		return s.createTransfer(ctx, userID, req, date)
 	}
 
@@ -108,7 +133,7 @@ func (s *service) Create(ctx context.Context, userID uint, req CreateTransaction
 	t := &Transaction{
 		UserID:      userID,
 		AccountID:   req.AccountID,
-		CategoryID:  req.CategoryID,
+		CategoryID:  categoryID,
 		Amount:      req.Amount,
 		Type:        req.Type,
 		Description: req.Description,
