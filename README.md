@@ -8,7 +8,7 @@ A production-quality REST API backend for personal finance management, built wit
 
 ArthaLedger helps users track income and expenses across multiple bank accounts. Transactions are categorized automatically using keyword rules, with an optional OpenAI fallback for unknown merchants. The system supports budgeting, smart alerts, and monthly financial reports.
 
-**Status:** Phase 1 complete — auth API live (register, login, refresh, logout) with JWT + Swagger UI.
+**Status:** Phase 2 complete — accounts & transactions API live with atomic balance management, transfer support, and Swagger UI.
 
 ---
 
