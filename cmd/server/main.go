@@ -37,6 +37,8 @@ import (
 	"github.com/nilabh/arthaledger/config"
 	"github.com/nilabh/arthaledger/internal/accounts"
 	"github.com/nilabh/arthaledger/internal/auth"
+	"github.com/nilabh/arthaledger/internal/categories"
+	"github.com/nilabh/arthaledger/internal/rules"
 	"github.com/nilabh/arthaledger/internal/transactions"
 	"github.com/nilabh/arthaledger/pkg/database"
 	"github.com/nilabh/arthaledger/pkg/middleware"
@@ -96,10 +98,23 @@ func main() {
 	accountSvc := accounts.NewService(accountRepo)
 	accountHandler := accounts.NewHandler(accountSvc)
 
-	// Transactions — depends on accountRepo for ownership checks and balance updates.
+	// Rules (categorization) — must be wired before the transaction service so
+	// it can be passed in as the RulesProvider for auto-categorization.
+	ruleRepo := rules.NewRepository(db)
+	ruleSvc := rules.NewService(ruleRepo)
+	ruleHandler := rules.NewHandler(ruleSvc)
+
+	// Transactions — depends on accountRepo for balance updates and ruleSvc for
+	// auto-categorization on transaction create.
 	txRepo := transactions.NewRepository(db)
-	txSvc := transactions.NewService(txRepo, accountRepo)
+	txSvc := transactions.NewService(txRepo, accountRepo, ruleSvc)
 	txHandler := transactions.NewHandler(txSvc)
+
+	// Categories — system categories (user_id IS NULL) are visible to all users;
+	// user-created categories are scoped to their owner.
+	categoryRepo := categories.NewRepository(db)
+	categorySvc := categories.NewService(categoryRepo)
+	categoryHandler := categories.NewHandler(categorySvc)
 
 	// ── HTTP server setup ───────────────────────────────────────────────────
 
@@ -144,6 +159,12 @@ func main() {
 
 			// Transactions — full CRUD + filtered paginated list
 			txHandler.RegisterRoutes(protected.Group("/transactions"))
+
+			// Categories — system categories (read-only) + user-defined CRUD
+			categoryHandler.RegisterRoutes(protected.Group("/categories"))
+
+			// Rules — keyword → category mappings for auto-categorization
+			ruleHandler.RegisterRoutes(protected.Group("/rules"))
 		}
 	}
 
