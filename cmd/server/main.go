@@ -36,8 +36,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/nilabh/arthaledger/config"
 	"github.com/nilabh/arthaledger/internal/accounts"
+	"github.com/nilabh/arthaledger/internal/alerts"
 	"github.com/nilabh/arthaledger/internal/auth"
+	"github.com/nilabh/arthaledger/internal/budgets"
 	"github.com/nilabh/arthaledger/internal/categories"
+	"github.com/nilabh/arthaledger/internal/reports"
 	"github.com/nilabh/arthaledger/internal/rules"
 	"github.com/nilabh/arthaledger/internal/transactions"
 	"github.com/nilabh/arthaledger/pkg/database"
@@ -116,6 +119,23 @@ func main() {
 	categorySvc := categories.NewService(categoryRepo)
 	categoryHandler := categories.NewHandler(categorySvc)
 
+	// Alerts — must be wired before budgets because budgets.Service depends on
+	// alerts.Service via the budgets.AlertCreator interface.
+	alertRepo := alerts.NewRepository(db)
+	alertSvc := alerts.NewService(alertRepo)
+	alertHandler := alerts.NewHandler(alertSvc)
+
+	// Budgets — receives alertSvc which satisfies the budgets.AlertCreator
+	// interface via Go structural typing (no explicit cast needed).
+	budgetRepo := budgets.NewRepository(db)
+	budgetSvc := budgets.NewService(budgetRepo, alertSvc)
+	budgetHandler := budgets.NewHandler(budgetSvc)
+
+	// Reports — read-only analytics derived from existing tables; no write deps.
+	reportRepo := reports.NewRepository(db)
+	reportSvc := reports.NewService(reportRepo)
+	reportHandler := reports.NewHandler(reportSvc)
+
 	// ── HTTP server setup ───────────────────────────────────────────────────
 
 	// Silence Gin's debug noise in production
@@ -165,6 +185,15 @@ func main() {
 
 			// Rules — keyword → category mappings for auto-categorization
 			ruleHandler.RegisterRoutes(protected.Group("/rules"))
+
+			// Budgets — spending limits per category with live progress tracking
+			budgetHandler.RegisterRoutes(protected.Group("/budgets"))
+
+			// Alerts — in-app notifications for budget warnings and breaches
+			alertHandler.RegisterRoutes(protected.Group("/alerts"))
+
+			// Reports — monthly summaries, spending trends, CSV export
+			reportHandler.RegisterRoutes(protected.Group("/reports"))
 		}
 	}
 
