@@ -8,7 +8,7 @@ A production-quality REST API backend for personal finance management, built wit
 
 ArthaLedger helps users track income and expenses across multiple bank accounts. Transactions are categorized automatically using keyword rules, with an optional OpenAI fallback for unknown merchants. The system supports budgeting, smart alerts, and monthly financial reports.
 
-**Status:** Phase 2 complete — accounts & transactions API live with atomic balance management, transfer support, and Swagger UI.
+**Status:** Phase 3 complete — budgets, alerts, and reports API live with live spending tracking, budget breach notifications, monthly summaries, trend analytics, and CSV export.
 
 ---
 
@@ -88,9 +88,10 @@ All routes are prefixed with `/api/v1`. All routes except `/auth/register` and `
 | Accounts | `/api/v1/accounts` |
 | Transactions | `/api/v1/transactions` |
 | Categories | `/api/v1/categories` |
+| Rules | `/api/v1/rules` |
 | Budgets | `/api/v1/budgets` |
-| Reports | `/api/v1/reports` |
 | Alerts | `/api/v1/alerts` |
+| Reports | `/api/v1/reports` |
 | Health | `/health` |
 
 Full Swagger UI is available at `http://localhost:8080/swagger/index.html` after running `make swagger`. Re-run after any annotation change.
@@ -113,10 +114,20 @@ Six tables — created by running `make migrate-up`.
 | `accounts` | Bank/cash/credit accounts per user |
 | `categories` | System-wide (seeded) and user-defined categories |
 | `transactions` | Income and expense records linked to an account |
-| `budgets` | Monthly spending limits per category |
+| `categorization_rules` | Keyword → category mappings for auto-categorization |
+| `budgets` | Monthly (and other period) spending limits per category |
 | `alerts` | Budget warnings, breach notices, unusual spend flags |
 
 16 system categories are seeded automatically (Salary, Food & Dining, Transport, Shopping, etc.).
+
+### Migration history
+
+| File | Change |
+|---|---|
+| `000001_init_schema` | All tables + seed categories |
+| `000002_add_transfer_reference` | `transfer_reference_id` on transactions |
+| `000003_add_categorization_rules` | `categorization_rules` table |
+| `000004_add_budget_alerts_phase3` | `budget_id` FK on alerts (Phase 3) |
 
 ---
 
