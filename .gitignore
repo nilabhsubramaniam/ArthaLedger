@@ -43,7 +43,6 @@ dist/
 .env
 .env.local
 .env.*.local
-
 # OS-specific files
 Thumbs.db
 .DS_Store
